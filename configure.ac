@@ -272,6 +272,7 @@ ARG_ENABL_SET([led],            [enable plugin to control LEDs on IKEv2 activity
 ARG_ENABL_SET([load-tester],    [enable load testing plugin for IKEv2 daemon.])
 ARG_ENABL_SET([lookip],         [enable fast virtual IP lookup and notification plugin.])
 ARG_ENABL_SET([radattr],        [enable plugin to inject and process custom RADIUS attributes as IKEv2 client.])
+ARG_ENABL_SET([sa-notify],      [enable plugin to write CHILD_SA events to a file.])
 ARG_ENABL_SET([save-keys],      [enable development/debugging plugin that saves IKE and ESP keys in Wireshark format.])
 ARG_ENABL_SET([systime-fix],    [enable plugin to handle cert lifetimes with invalid system time gracefully.])
 ARG_ENABL_SET([test-vectors],   [enable plugin providing crypto test vectors.])
@@ -1442,6 +1443,7 @@ ADD_PLUGIN([kernel-pfkey],         [c charon starter nm cmd])
 ADD_PLUGIN([kernel-pfroute],       [c charon starter nm cmd])
 ADD_PLUGIN([kernel-netlink],       [c charon starter nm cmd])
 ADD_PLUGIN([resolve],              [c charon cmd])
+ADD_PLUGIN([sa-notify],            [c])
 ADD_PLUGIN([save-keys],            [c])
 ADD_PLUGIN([socket-default],       [c charon nm cmd])
 ADD_PLUGIN([socket-dynamic],       [c charon cmd])
@@ -1671,6 +1673,7 @@ AM_CONDITIONAL(USE_IMC_SWIMA, test x$imc_swima = xtrue)
 AM_CONDITIONAL(USE_IMV_SWIMA, test x$imv_swima = xtrue)
 AM_CONDITIONAL(USE_IMC_HCD, test x$imc_hcd = xtrue)
 AM_CONDITIONAL(USE_IMV_HCD, test x$imv_hcd = xtrue)
+AM_CONDITIONAL(USE_SA_NOTIFY, test x$sa_notify = xtrue)
 AM_CONDITIONAL(USE_SAVE_KEYS, test x$save_keys = xtrue)
 AM_CONDITIONAL(USE_SOCKET_DEFAULT, test x$socket_default = xtrue)
 AM_CONDITIONAL(USE_SOCKET_DYNAMIC, test x$socket_dynamic = xtrue)
@@ -1935,6 +1938,7 @@ AC_CONFIG_FILES([
 	src/libcharon/plugins/xauth_noauth/Makefile
 	src/libcharon/plugins/tnc_ifmap/Makefile
 	src/libcharon/plugins/tnc_pdp/Makefile
+	src/libcharon/plugins/sa_notify/Makefile
 	src/libcharon/plugins/save_keys/Makefile
 	src/libcharon/plugins/socket_default/Makefile
 	src/libcharon/plugins/socket_dynamic/Makefile

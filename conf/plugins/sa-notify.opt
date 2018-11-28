@@ -1,0 +1,5 @@
+charon.plugins.sa-notify.load := no
+	Whether to load the plugin.
+
+charon.plugins.sa-notify.child_sa
+	File where the CHILD_SA events are written to.
