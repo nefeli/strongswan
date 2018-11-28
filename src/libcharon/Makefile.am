@@ -208,6 +208,13 @@ if MONOLITHIC
 endif
 endif
 
+if USE_SA_NOTIFY
+ SUBDIRS += plugins/sa_notify
+if MONOLITHIC
+ libcharon_la_LIBADD += plugins/sa_notify/libstrongswan-sa-notify.la
+endif
+endif
+
 if USE_SAVE_KEYS
  SUBDIRS += plugins/save_keys
 if MONOLITHIC
