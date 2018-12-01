@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2018 Christopher Chon
  * Nefeli Networks Inc.
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"), to
  * deal in the Software without restriction, including without limitation the
@@ -153,14 +154,14 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
   if (!proposal->get_algorithm(proposal, INTEGRITY_ALGORITHM, &alg, NULL)) {
     switch (alg) {
     case ENCR_AES_GCM_ICV8:
-      len = 64;
-      break;
+    	len = 64;
+    	break;
     case ENCR_AES_GCM_ICV12:
-      len = 64;
-      break;
+    	len = 64;
+    	break;
     case ENCR_AES_GCM_ICV16:
-      len = 128;
-      break;
+    	len = 128;
+    	break;
     }
     alg = AUTH_UNDEFINED;
   }
@@ -168,7 +169,7 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
 }
 
 /**
- * Handle CHILD SA creation
+ * Notify CHILD SA creation
  * Based on the save-keys plugin
  */
 METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
@@ -183,15 +184,20 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
   const char *enc = NULL, *integ = NULL;
   char *family;
   esp_names(child_sa->get_proposal(child_sa), &enc, &integ);
+  if (enc == NULL || integ == NULL) {
+  	DBG0(DBG_CHD, "Unsupported algorithm encryption: \"%s\" integrity: \"%s\"",
+  					enc, integ);
+	return TRUE;
+  }
   uint32_t uid = child_sa->get_unique_id(child_sa);
   if (enc && integ) {
     /* Since the IPs are printed this is not compatible with MOBIKE */
     if (initiator) {
-      init = ike_sa->get_my_host(ike_sa);
-      resp = ike_sa->get_other_host(ike_sa);
+    	init = ike_sa->get_my_host(ike_sa);
+    	resp = ike_sa->get_other_host(ike_sa);
     } else {
-      init = ike_sa->get_other_host(ike_sa);
-      resp = ike_sa->get_my_host(ike_sa);
+    	init = ike_sa->get_other_host(ike_sa);
+    	resp = ike_sa->get_my_host(ike_sa);
     }
     spi_i = child_sa->get_spi(child_sa, initiator);
     spi_r = child_sa->get_spi(child_sa, !initiator);
@@ -208,7 +214,8 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 				"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",\"%ld\"\n",
 				CREATE, uid, family, resp, init, ntohl(spi_i), enc, &encr_r,
 				integ, &integ_r, child_sa->get_lifetime(child_sa, TRUE));
-    if (res1 < 0 || res2 < 0) {
+    int resf = fflush(this->f);
+    if (res1 < 0 || res2 < 0 || resf != 0) {
     	DBG0(DBG_CHD,
     		"Failed to write child_derived_keys to file \"%s\" for \"%ld\"",
     		this->filepath, child_sa->get_unique_id(child_sa));
@@ -223,7 +230,7 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 }
 
 /**
- * Handle SA deletion
+ * Notify CHILD_SA deletion
  */
 METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
        ike_sa_t *ike_sa, child_sa_t *child_sa, bool up) {
@@ -234,7 +241,8 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
   }
   int res = fprintf(this->f, "\"%s\",\"%u\"\n", DELETE,
 			child_sa->get_unique_id(child_sa));
-  if (res < 0) {
+  int resf = fflush(this->f);
+  if (res < 0 || resf != 0) {
   	DBG0(DBG_CHD,
     		"Failed to write child_child_updown to file \"%s\" for \"%ld\"",
     		this->filepath, child_sa->get_unique_id(child_sa));
@@ -243,14 +251,15 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 }
 
 /**
- * Handle SA rekeying
+ * Notify CHILD_SA rekeying
  */
 METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
        ike_sa_t *ike_sa, child_sa_t *old, child_sa_t *new) {
   int res = fprintf(this->f, "\"%s\",\"%u\",\"%ld\",\"%u\",\"%ld\"\n", REKEY,
         	old->get_unique_id(old), old->get_lifetime(old, TRUE),
         	new->get_unique_id(new), new->get_lifetime(new, TRUE));
-  if (res < 0) {
+  int resf = fflush(this->f);
+  if (res < 0 || resf != 0) {
   	DBG0(DBG_CHD,
     		"Failed to write child_rekey to file \"%s\" for old: \"%ld\" new: \"%ld\"",
     		this->filepath, old->get_unique_id(old), new->get_unique_id(new));
@@ -283,7 +292,7 @@ sa_notify_listener_t *sa_notify_listener_create() {
 
   this->f = fopen(this->filepath, "a");
   if (!this->f) {
-    DBG0(DBG_DMN, "Failed to open file: %s", this->filepath);
+  	DBG0(DBG_DMN, "Failed to open file: %s", this->filepath);
   }
 
   return &this->public;
