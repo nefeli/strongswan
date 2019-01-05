@@ -41,7 +41,7 @@ struct sa_notify_listener_t {
 	/**
 	 * Destroy a sa_notify_listener_t
 	 */
- 	void (*destroy)(sa_notify_listener_t *this);
+	void (*destroy)(sa_notify_listener_t *this);
 };
 
 /**

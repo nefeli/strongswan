@@ -70,8 +70,8 @@ METHOD(plugin_t, get_features, int, private_sa_notify_plugin_t *this,
 {
 	static plugin_feature_t f[] =
 	{
-			PLUGIN_CALLBACK((plugin_feature_callback_t)plugin_cb, NULL),
-			PLUGIN_PROVIDE(CUSTOM, "sa_notify"),
+		PLUGIN_CALLBACK((plugin_feature_callback_t)plugin_cb, NULL),
+		PLUGIN_PROVIDE(CUSTOM, "sa_notify"),
 	};
 	*features = f;
 	return countof(f);
