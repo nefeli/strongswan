@@ -37,6 +37,21 @@ typedef struct algo_map_t algo_map_t;
 static const char *CREATE = "CREATE";
 
 /**
+ * CHILD_SA traffic selector
+ */
+static const char *SELECTOR = "SELECTOR";
+
+/**
+ * Local selector
+ */
+static const char *LOCAL = "LOCAL";
+
+/**
+ * Remote selector
+ */
+static const char *REMOTE = "REMOTE";
+
+/**
  * CHILD_SA deletion
  */
 static const char *DELETE = "DELETE";
@@ -168,6 +183,61 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
   *integ = algo_name(esp_integ, countof(esp_integ), alg, len);
 }
 
+char *type_to_string(ts_type_t type)
+{
+        switch(type)
+        {
+                case TS_IPV4_ADDR_RANGE:
+                        return "IPv4";
+                case TS_IPV6_ADDR_RANGE:
+                        return "IPv6";
+                default:
+                        return NULL;
+        }
+}
+
+int print_selectors(int family, bool local, enumerator_t *enumerator, FILE *f) {
+        bool res = TRUE;
+        char *field = local ? LOCAL : REMOTE;
+
+        traffic_selector_t *ts;
+        while (enumerator->enumerate(enumerator, &ts))
+        {
+                /* For ports, "If the protocol is ICMP/ICMPv6 the ICMP type and code are stored in this
+                 * field as follows:  The message type is placed in the most significant
+                 * 8 bits and the code in the least significant 8 bits". */
+                res = fprintf(f,
+                                "\"%s\",\"%s\",\"%N\",%u,\"%H\",\"%H\",%u,%u\n", SELECTOR, field, ts_type_name,
+                                ts->get_type(ts), ts->get_protocol(ts),
+                                host_create_from_chunk(family, ts->get_from_address(ts), ts->get_from_port(ts)),
+                                host_create_from_chunk(family, ts->get_to_address(ts), ts->get_to_port(ts)),
+                                ts->get_from_port(ts), ts->get_to_port(ts)) > 0 && res;
+        }
+        return res;
+}
+
+int print_sa(uint32_t uid, char *family_str, int family, host_t *local,
+				host_t *remote, protocol_id_t protocol, ipsec_mode_t mode,
+				uint32_t spi, const char *enc, const chunk_t *encr_key,
+				const char *integ, const chunk_t *integ_key, time_t lifetime,
+				child_sa_t *child_sa, FILE *f)
+{
+	/* Print SA */
+	bool res = fprintf(f,
+					"\"%s\",%u,\"%N\",\"%N\",\"%s\",\"%H\",\"%H\",\"0x%.8x\","
+					"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",%ld\n",
+					CREATE, uid, protocol_id_names, protocol, ipsec_mode_names,
+					mode, family_str, local, remote, spi, enc, encr_key, integ,
+					integ_key, lifetime) > 0;
+
+	/* Print local */
+	res = print_selectors(family, TRUE, child_sa->create_ts_enumerator(child_sa, TRUE), f);
+
+	/* Print remote */
+	res = print_selectors(family, FALSE, child_sa->create_ts_enumerator(child_sa, FALSE), f);
+	return res;
+}
+
 /**
  * Notify CHILD SA creation
  * Based on the save-keys plugin
@@ -183,6 +253,9 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
   uint32_t spi_i, spi_r;
   const char *enc = NULL, *integ = NULL;
   char *family;
+  protocol_id_t protocol = child_sa->get_protocol(child_sa);
+  ipsec_mode_t mode = child_sa->get_mode(child_sa);
+  time_t lifetime = child_sa->get_lifetime(child_sa, TRUE);
   esp_names(child_sa->get_proposal(child_sa), &enc, &integ);
   if (enc == NULL || integ == NULL) {
   	DBG0(DBG_CHD, "Unsupported algorithm encryption: \"%s\" integrity: \"%s\"",
@@ -204,20 +277,14 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
     family = init->get_family(init) == AF_INET ? "IPv4" : "IPv6";
 
     /* a CHILD_SA consists of a pair of SAs */
-    int res1 = fprintf(this->f,
-				"\"%s\",\"%u\",\"%s\",\"%H\",\"%H\",\"0x%.8x\","
-				"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",\"%ld\"\n",
-				CREATE, uid, family, init, resp, ntohl(spi_r), enc, &encr_i,
-				integ, &integ_i, child_sa->get_lifetime(child_sa, TRUE));
-    int res2 = fprintf(this->f,
-        		"\"%s\",\"%u\",\"%s\",\"%H\",\"%H\",\"0x%.8x\","
-				"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",\"%ld\"\n",
-				CREATE, uid, family, resp, init, ntohl(spi_i), enc, &encr_r,
-				integ, &integ_r, child_sa->get_lifetime(child_sa, TRUE));
+    int res = print_sa(uid, family, init->get_family(init), resp, init, protocol, mode, ntohl(spi_r), enc, &encr_i,
+                    integ, &integ_i, lifetime, child_sa, this->f);
+    res = print_sa(uid, family, init->get_family(init), resp, init, protocol, mode, ntohl(spi_i), enc, &encr_r,
+                    integ, &integ_r, lifetime, child_sa, this->f) && res;
     int resf = fflush(this->f);
-    if (res1 < 0 || res2 < 0 || resf != 0) {
+    if (!res || resf != 0) {
     	DBG0(DBG_CHD,
-    		"Failed to write child_derived_keys to file \"%s\" for \"%ld\"",
+    		"Failed to write or flush child_derived_keys to file \"%s\" for \"%ld\"",
     		this->filepath, child_sa->get_unique_id(child_sa));
     }
   } else {
