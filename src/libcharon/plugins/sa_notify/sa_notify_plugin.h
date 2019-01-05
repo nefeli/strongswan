@@ -42,10 +42,10 @@ typedef struct sa_notify_plugin_t sa_notify_plugin_t;
  */
 struct sa_notify_plugin_t {
 
-  /**
-   * Implements plugin_t interface.
-   */
-  plugin_t plugin;
+	/**
+	 * Implements plugin_t interface.
+	 */
+	plugin_t plugin;
 };
 
 #endif /** SA_NOTIFY_PLUGIN_H_ @} */
