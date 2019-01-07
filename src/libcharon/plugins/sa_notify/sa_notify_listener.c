@@ -32,36 +32,6 @@ typedef struct private_sa_notify_listener_t private_sa_notify_listener_t;
 typedef struct algo_map_t algo_map_t;
 
 /**
- * CHILD_SA creation
- */
-static const char *CREATE = "CREATE";
-
-/**
- * CHILD_SA traffic selector
- */
-static const char *SELECTOR = "SELECTOR";
-
-/**
- * Local selector
- */
-static const char *LOCAL = "LOCAL";
-
-/**
- * Remote selector
- */
-static const char *REMOTE = "REMOTE";
-
-/**
- * CHILD_SA deletion
- */
-static const char *DELETE = "DELETE";
-
-/**
- * CHILD_SA rekey
- */
-static const char *REKEY = "REKEY";
-
-/**
  * Private data
  */
 struct private_sa_notify_listener_t {
@@ -190,23 +160,9 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
 	*integ = algo_name(esp_integ, countof(esp_integ), alg, len);
 }
 
-char *type_to_string(ts_type_t type)
+void print_selectors(int family, bool local, enumerator_t *enumerator, FILE *f)
 {
-	switch(type)
-	{
-		case TS_IPV4_ADDR_RANGE:
-			return "IPv4";
-		case TS_IPV6_ADDR_RANGE:
-			return "IPv6";
-		default:
-			return NULL;
-	}
-}
-
-int print_selectors(int family, bool local, enumerator_t *enumerator, FILE *f)
-{
-	bool res = TRUE;
-	char *field = local ? LOCAL : REMOTE;
+	char *field = local ? "LOCAL" : "REMOTE";
 
 	traffic_selector_t *ts;
 	while (enumerator->enumerate(enumerator, &ts))
@@ -214,36 +170,36 @@ int print_selectors(int family, bool local, enumerator_t *enumerator, FILE *f)
 		/* For ports, "If the protocol is ICMP/ICMPv6 the ICMP type and code are stored in this
 		 * field as follows:  The message type is placed in the most significant
 		 * 8 bits and the code in the least significant 8 bits". */
-		res = fprintf(f,
-			"\"%s\",\"%s\",\"%N\",%u,\"%H\",\"%H\",%u,%u\n", SELECTOR, field, ts_type_name,
+		fprintf(f,
+			",\"SELECTOR\",\"%s\",\"%N\",%u,\"%H\",\"%H\",%u,%u", field, ts_type_name,
 			ts->get_type(ts), ts->get_protocol(ts),
 			host_create_from_chunk(family, ts->get_from_address(ts), ts->get_from_port(ts)),
 			host_create_from_chunk(family, ts->get_to_address(ts), ts->get_to_port(ts)),
-			ts->get_from_port(ts), ts->get_to_port(ts)) > 0 && res;
+			ts->get_from_port(ts), ts->get_to_port(ts));
 	}
-	return res;
 }
 
-int print_sa(uint32_t uid, char *family_str, int family, host_t *local,
+void print_sa(uint32_t uid, char *family_str, int family, host_t *local,
 				host_t *remote, protocol_id_t protocol, ipsec_mode_t mode,
 				uint32_t spi, const char *enc, const chunk_t *encr_key,
 				const char *integ, const chunk_t *integ_key, time_t lifetime,
-				child_sa_t *child_sa, FILE *f)
+				child_sa_t *child_sa, char *ike_name, FILE *f)
 {
 	/* Print SA */
-	bool res = fprintf(f,
-		"\"%s\",%u,\"%N\",\"%N\",\"%s\",\"%H\",\"%H\",\"0x%.8x\","
-		"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",%ld\n",
-		CREATE, uid, protocol_id_names, protocol, ipsec_mode_names,
-		mode, family_str, local, remote, spi, enc, encr_key, integ,
-		integ_key, lifetime) > 0;
+	fprintf(f,
+		"\"CREATE\",%u,\"%s\",\"%s\",\"%N\",\"%N\",\"%s\",\"%H\",\"%H\",\"0x%.8x\","
+		"\"%s\",\"0x%+B\",\"%s\",\"0x%+B\",%ld",
+		 uid, ike_name, child_sa->get_name(child_sa), protocol_id_names,
+        protocol, ipsec_mode_names, mode, family_str, local, remote, spi, enc,
+        encr_key, integ, integ_key, lifetime);
 
 	/* Print local */
-	res = print_selectors(family, TRUE, child_sa->create_ts_enumerator(child_sa, TRUE), f);
+	print_selectors(family, TRUE, child_sa->create_ts_enumerator(child_sa, TRUE), f);
 
 	/* Print remote */
-	res = print_selectors(family, FALSE, child_sa->create_ts_enumerator(child_sa, FALSE), f);
-	return res;
+	print_selectors(family, FALSE, child_sa->create_ts_enumerator(child_sa, FALSE), f);
+
+	fprintf(f, "\n");
 }
 
 /**
@@ -292,17 +248,17 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 		family = init->get_family(init) == AF_INET ? "IPv4" : "IPv6";
 
 		/* a CHILD_SA consists of a pair of SAs */
-		int res = print_sa(uid, family, init->get_family(init), resp, init,
+		print_sa(uid, family, init->get_family(init), resp, init,
 			protocol, mode, ntohl(spi_r), enc, &encr_i, integ, &integ_i,
-			lifetime, child_sa, this->f);
-		res = print_sa(uid, family, init->get_family(init), resp, init,
-			protocol, mode, ntohl(spi_i), enc, &encr_r,
-			integ, &integ_r, lifetime, child_sa, this->f) && res;
-		int resf = fflush(this->f);
-		if (!res || resf != 0)
+			lifetime, child_sa, ike_sa->get_name(ike_sa), this->f);
+		print_sa(uid, family, init->get_family(init), resp, init,
+			protocol, mode, ntohl(spi_i), enc, &encr_r, integ, &integ_r,
+            lifetime, child_sa, ike_sa->get_name(ike_sa), this->f);
+		int res = fflush(this->f);
+		if (res != 0)
 		{
 			DBG0(DBG_CHD,
-				"Failed to write or flush child_derived_keys to file \"%s\" for \"%ld\"",
+				"Failed to flush child_derived_keys to file \"%s\" for \"%ld\"",
 				this->filepath, child_sa->get_unique_id(child_sa));
 		}
 	}
@@ -328,8 +284,9 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 	{
 		return TRUE;
 	}
-	int res = fprintf(this->f, "\"%s\",\"%u\"\n", DELETE,
-		child_sa->get_unique_id(child_sa));
+	int res = fprintf(this->f, "\"DELETE\",\"%u\",\"%s\",\"%s\"\n",
+        child_sa->get_unique_id(child_sa),ike_sa->get_name(ike_sa),
+        child_sa->get_name(child_sa));
 	int resf = fflush(this->f);
 	if (res < 0 || resf != 0)
 	{
@@ -346,9 +303,11 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
 				ike_sa_t *ike_sa, child_sa_t *old, child_sa_t *new)
 {
-	int res = fprintf(this->f, "\"%s\",\"%u\",\"%ld\",\"%u\",\"%ld\"\n", REKEY,
-		old->get_unique_id(old), old->get_lifetime(old, TRUE),
-		new->get_unique_id(new), new->get_lifetime(new, TRUE));
+	int res = fprintf(this->f,
+        "\"REKEY\",\"%s\",\"%s\",\"%s\",\"%u\",\"%ld\",\"%u\",\"%ld\"\n",
+        ike_sa->get_name(ike_sa), old->get_name(old), new->get_name(new),
+        old->get_unique_id(old), old->get_lifetime(old, TRUE),
+        new->get_unique_id(new), new->get_lifetime(new, TRUE));
 	int resf = fflush(this->f);
 	if (res < 0 || resf != 0)
 	{
