@@ -248,7 +248,7 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 		family = init->get_family(init) == AF_INET ? "IPv4" : "IPv6";
 
 		/* a CHILD_SA consists of a pair of SAs */
-		print_sa(uid, family, init->get_family(init), resp, init,
+		print_sa(uid, family, init->get_family(init), init, resp,
 			protocol, mode, ntohl(spi_r), enc, &encr_i, integ, &integ_i,
 			lifetime, child_sa, ike_sa->get_name(ike_sa), this->f);
 		print_sa(uid, family, init->get_family(init), resp, init,
@@ -284,7 +284,7 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 	{
 		return TRUE;
 	}
-	int res = fprintf(this->f, "\"DELETE\",\"%u\",\"%s\",\"%s\"\n",
+	int res = fprintf(this->f, "\"DELETE\",%u,\"%s\",\"%s\"\n",
         child_sa->get_unique_id(child_sa),ike_sa->get_name(ike_sa),
         child_sa->get_name(child_sa));
 	int resf = fflush(this->f);
@@ -304,7 +304,7 @@ METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
 				ike_sa_t *ike_sa, child_sa_t *old, child_sa_t *new)
 {
 	int res = fprintf(this->f,
-        "\"REKEY\",\"%s\",\"%s\",\"%s\",\"%u\",\"%ld\",\"%u\",\"%ld\"\n",
+        "\"REKEY\",\"%s\",\"%s\",\"%s\",%u,%ld,%u,%ld\n",
         ike_sa->get_name(ike_sa), old->get_name(old), new->get_name(new),
         old->get_unique_id(old), old->get_lifetime(old, TRUE),
         new->get_unique_id(new), new->get_lifetime(new, TRUE));
