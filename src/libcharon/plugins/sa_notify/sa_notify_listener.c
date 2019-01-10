@@ -284,7 +284,7 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 	{
 		return TRUE;
 	}
-	int res = fprintf(this->f, "\"DELETE\",\"%u\",\"%s\",\"%s\"\n",
+	int res = fprintf(this->f, "\"DELETE\",%u,\"%s\",\"%s\"\n",
         child_sa->get_unique_id(child_sa),ike_sa->get_name(ike_sa),
         child_sa->get_name(child_sa));
 	int resf = fflush(this->f);
@@ -304,7 +304,7 @@ METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
 				ike_sa_t *ike_sa, child_sa_t *old, child_sa_t *new)
 {
 	int res = fprintf(this->f,
-        "\"REKEY\",\"%s\",\"%s\",\"%s\",\"%u\",\"%ld\",\"%u\",\"%ld\"\n",
+        "\"REKEY\",\"%s\",\"%s\",\"%s\",%u,%ld,%u,%ld\n",
         ike_sa->get_name(ike_sa), old->get_name(old), new->get_name(new),
         old->get_unique_id(old), old->get_lifetime(old, TRUE),
         new->get_unique_id(new), new->get_lifetime(new, TRUE));
