@@ -248,7 +248,7 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 		family = init->get_family(init) == AF_INET ? "IPv4" : "IPv6";
 
 		/* a CHILD_SA consists of a pair of SAs */
-		print_sa(uid, family, init->get_family(init), resp, init,
+		print_sa(uid, family, init->get_family(init), init, resp,
 			protocol, mode, ntohl(spi_r), enc, &encr_i, integ, &integ_i,
 			lifetime, child_sa, ike_sa->get_name(ike_sa), this->f);
 		print_sa(uid, family, init->get_family(init), resp, init,
