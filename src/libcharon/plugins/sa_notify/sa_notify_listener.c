@@ -221,7 +221,7 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 	char *family;
 	protocol_id_t protocol = child_sa->get_protocol(child_sa);
 	ipsec_mode_t mode = child_sa->get_mode(child_sa);
-	time_t lifetime = child_sa->get_lifetime(child_sa, TRUE);
+	time_t lifetime = child_sa->get_lifetime(child_sa, TRUE) - child_sa->get_installtime(child_sa);
 	esp_names(child_sa->get_proposal(child_sa), &enc, &integ);
 	if (enc == NULL || integ == NULL)
 	{
