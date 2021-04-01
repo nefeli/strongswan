@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package nefeli.pb;
+
+message Selector {
+  message Address {
+    oneof value {
+      // Anything matches (superset of kOpaque)
+      bool any = 1;
+
+      // Subnet definition to match
+      // When we send SAs, literal will actually hold a range. The user is
+      // prevented from using this feature by the policy controller's validation
+      // check.
+      string literal = 2;
+    }
+  }
+
+  message Port {
+    // represents an interval [start, end]
+    message Range {
+      uint32 start = 1; // inclusive
+      uint32 end = 2;   // inclusive
+    }
+
+    oneof value {
+      // Anything matches (superset of kOpaque)
+      bool any = 1;
+
+      // Value unavailable for matching
+      bool opaque = 2;
+
+      // List of valid ranges used for matching
+      Range literal = 3;
+    }
+  }
+
+  message Protocol {
+    oneof value {
+      // Anything matches (superset of kOpaque)
+      bool any = 1;
+
+      // Value [0, 255] to match against
+      uint32 literal = 2;
+    }
+  }
+
+  // Remote IP Address(es) (IPv4 only)
+  Address remote_addrs = 1 [ json_name = "remote_addrs" ];
+
+  // Local IP Address(es) (IPv4 only)
+  Address local_addrs = 2 [ json_name = "local_addrs" ];
+
+  // Next Layer Protocol
+  Protocol proto = 3;
+
+  // Remote Ports (if Next Layer Protocol has 2 ports)
+  Port remote_ports = 4 [ json_name = "remote_ports" ];
+
+  // Local Ports (if Next Layer Protocol has 2 ports)
+  Port local_ports = 5 [ json_name = "local_ports" ];
+}
+
+// Supported encryption algorithms
+enum EncryptionAlgorithm {
+  NULL_ENCR = 0;
+  AES_GCM = 1;
+}
+
+message SA {
+  reserved 1;  // uint32 uid = 1;  // SA uid from Charon
+
+  // IP protocol (IPv4 only)
+  reserved 2;  // IPProto ip_proto = 2;
+
+  // IPsec security protocols (ESP only)
+  reserved 3;  // Proto proto = 3;
+
+  // Local IP address
+  uint32 local = 4;
+
+  // Remote IP address
+  uint32 remote = 5;
+
+  // SPI
+  uint32 spi = 6;
+
+  // IPsec mode
+  bool tunnel = 7;
+
+  // Encryption algorithm
+  EncryptionAlgorithm encr_alg = 8;
+
+  // Encryption key
+  bytes encr_key = 9;
+
+  // Encryption IV
+  bytes iv = 10;
+
+  reserved 11;  // IntegrityAlgorithm integ_alg = 11;
+
+  reserved 12;  // bytes integ_key = 12;
+
+  reserved 13;  // uint64 lifetime = 13;
+
+  repeated Selector selectors = 14;
+}
+
+message Policy {
+
+  enum ProcessingChoice {
+    DISCARD = 0;
+    BYPASS = 1;
+    PROTECT = 2;
+  }
+
+  repeated Selector selectors = 1;
+
+  reserved 2;  // uint32 pfp_flags = 2 [ json_name = "pfp_flags" ];
+
+  ProcessingChoice processing_choice = 3 [ json_name = "processing_choice" ];
+
+  reserved 4;  // string name = 4;
+
+  repeated uint32 spis = 5;
+}
+
+message IPsecConfig {
+  // true: IPsec protection enabled; false: passthrough packets
+  reserved 1; // bool enabled = 1;
+
+  // map from SA uid to SA
+  repeated SA sad = 2;
+
+  repeated Policy spd = 3;
+}
+
+message IPsecSAConfig {
+  SA sa = 1;
+}
+
+message EndpointConfig {
+  uint32 remote = 1;
+  uint32 local = 2;
+}
+
+message IPsecInboundArg {
+  // This must be set to a unique pipeline identifier, otherwise pipelines'
+  // SPD and SAD can be shared
+  string pipeline = 1;
+
+  // false: input and output packets are IP datagrams (default)
+  // true: input and output packets are Ethernet frames
+  //       (note that it has higher overheads, ~10% for MTU-sized packets)
+  bool eth_frame = 2;
+
+  // IP address of machine IPsecInbound is on
+  reserved 3;  // uint32 addr = 3;
+}
+
+message IPsecOutboundArg {
+  // This must be set to a unique pipeline identifier, otherwise pipelines'
+  // SPD and SAD can be shared
+  string pipeline = 1;
+
+  // false: input and output packets are IP datagrams (default)
+  // true: input and output packets are Ethernet frames
+  //       (note that it has higher overheads, ~10% for MTU-sized packets)
+  bool eth_frame = 2;
+
+  uint32 remote = 3;
+  uint32 local = 4;
+}
+
+message IPsecStats {
+  // Number of packets that were dropped for any reason other than matching with
+  // a discard policy
+  uint64 invalid = 1;
+
+  // Number of packets that were discarded
+  uint64 discard = 2;
+
+  // Number of packets that were bypassed
+  uint64 bypass = 3;
+
+  // Number of packets that were (sucessfully) protected
+  uint64 protect = 4;
+}
