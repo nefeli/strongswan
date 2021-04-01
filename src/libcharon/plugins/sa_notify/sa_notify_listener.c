@@ -162,7 +162,7 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
 	*integ = algo_name(esp_integ, countof(esp_integ), alg, len);
 }
 
-static void print_sa(uint32_t uid, int family, host_t *local,
+static void print_sa(uint32_t uid, host_t *local,
 				host_t *remote, protocol_id_t protocol, ipsec_mode_t mode,
 				uint32_t spi, proposal_t *proposal, const chunk_t *encr_key,
 				child_sa_t *child_sa, const char *ike_name, FILE *f)
@@ -224,9 +224,9 @@ static void print_sa(uint32_t uid, int family, host_t *local,
   while(local_selectors->enumerate(local_selectors, &ts)) {
     Nefeli__Pb__Selector *sel_pb = sa_pb.selectors[i];
 
-    host_t *host = host_create_from_chunk(family, ts->get_from_address(ts), 0);
+    host_t *host = host_create_from_chunk(AF_INET, ts->get_from_address(ts), 0);
     uint32_t start_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
-    host = host_create_from_chunk(family, ts->get_to_address(ts), 0);
+    host = host_create_from_chunk(AF_INET, ts->get_to_address(ts), 0);
     uint32_t end_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
 
     sel_pb->local_addrs = malloc(sizeof(Nefeli__Pb__Selector__Address));
@@ -239,7 +239,7 @@ static void print_sa(uint32_t uid, int family, host_t *local,
       int bytes_out = snprintf(lbuf, 1024, "%u,%u", start_addr,end_addr);
       sel_pb->local_addrs->value_case = NEFELI__PB__SELECTOR__ADDRESS__VALUE_LITERAL;
       sel_pb->local_addrs->literal = malloc(bytes_out + 1);
-      memcpy(sel_pb->local_addrs->literal, lbuf, bytes_out);
+      strncpy(sel_pb->local_addrs->literal, lbuf, bytes_out + 1);
     }
 
     uint8_t proto = ts->get_protocol(ts);
@@ -282,9 +282,9 @@ static void print_sa(uint32_t uid, int family, host_t *local,
   while(remote_selectors->enumerate(remote_selectors, &ts)) {
     Nefeli__Pb__Selector *sel_pb = sa_pb.selectors[i];
 
-    host_t *host = host_create_from_chunk(family, ts->get_from_address(ts), 0);
+    host_t *host = host_create_from_chunk(AF_INET, ts->get_from_address(ts), 0);
     uint32_t start_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
-    host = host_create_from_chunk(family, ts->get_to_address(ts), 0);
+    host = host_create_from_chunk(AF_INET, ts->get_to_address(ts), 0);
     uint32_t end_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
 
     sel_pb->remote_addrs = malloc(sizeof(Nefeli__Pb__Selector__Address));
@@ -297,7 +297,7 @@ static void print_sa(uint32_t uid, int family, host_t *local,
       int bytes_out = snprintf(lbuf, 1024, "%u,%u", start_addr,end_addr);
       sel_pb->remote_addrs->value_case = NEFELI__PB__SELECTOR__ADDRESS__VALUE_LITERAL;
       sel_pb->remote_addrs->literal = malloc(bytes_out + 1);
-      memcpy(sel_pb->remote_addrs->literal, lbuf, bytes_out);
+      strncpy(sel_pb->remote_addrs->literal, lbuf, bytes_out + 1);
     }
 
     uint8_t proto = ts->get_protocol(ts);
@@ -387,14 +387,19 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
   spi_i = child_sa->get_spi(child_sa, initiator);
   spi_r = child_sa->get_spi(child_sa, !initiator);
 
+  if (init->get_family(init) != AF_INET || resp->get_family(resp) != AF_INET) {
+    DBG0(DBG_CHD, "Unsupported address family for \"%ld\"", child_sa->get_unique_id(child_sa));
+    return TRUE;
+  }
+
   /* a CHILD_SA consists of a pair of SAs */
   print_sa(
-    uid, init->get_family(init), init, resp,
+    uid, init, resp,
     protocol, mode, spi_r, proposal, &encr_i, child_sa,
     ike_sa->get_name(ike_sa), this->f);
 
   print_sa(
-    uid, init->get_family(init), resp, init,
+    uid, resp, init,
     protocol, mode, spi_i, proposal, &encr_r, child_sa,
     ike_sa->get_name(ike_sa), this->f);
   int res = fflush(this->f);
