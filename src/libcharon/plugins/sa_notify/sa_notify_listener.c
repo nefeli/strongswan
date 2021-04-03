@@ -55,11 +55,6 @@ struct private_sa_notify_listener_t {
 	 * Path to unix socket where SAs will be written
 	 */
 	char *sock_path;
-
-	/**
-	 * Socket handle
-	 */
-	int sock_fd;
 };
 
 /**
@@ -383,6 +378,23 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 		return TRUE;
 	}
 
+	int sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);;
+	if (sock_fd < 0) {
+		DBG0(DBG_DMN, "Failed to open unix socket: %s", strerror(errno));
+    return TRUE;
+	}
+
+  struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(struct sockaddr_un));
+  addr.sun_family = AF_UNIX;
+  strncpy(addr.sun_path, this->sock_path, sizeof(addr.sun_path) - 1);
+
+  int ret = connect(sock_fd, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un));
+  if (ret == -1) {
+		DBG0(DBG_DMN, "Failed to connect to unix socket %s: %s", this->sock_path, strerror(errno));
+    return TRUE;
+  }
+
 	host_t *init, *resp;
 	uint32_t spi_i, spi_r;
 	protocol_id_t protocol = child_sa->get_protocol(child_sa);
@@ -413,12 +425,12 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
   print_sa(
     uid, init, resp,
     protocol, mode, spi_r, proposal, &encr_i, child_sa,
-    ike_sa->get_name(ike_sa), this->sock_fd);
+    ike_sa->get_name(ike_sa), sock_fd);
 
   print_sa(
     uid, resp, init,
     protocol, mode, spi_i, proposal, &encr_r, child_sa,
-    ike_sa->get_name(ike_sa), this->sock_fd);
+    ike_sa->get_name(ike_sa), sock_fd);
 
 	return TRUE;
 }
@@ -471,7 +483,6 @@ METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
 
 METHOD(sa_notify_listener_t, destroy, void, private_sa_notify_listener_t *this)
 {
-	close(this->sock_fd);
 	free(this);
 }
 
@@ -491,22 +502,6 @@ sa_notify_listener_t *sa_notify_listener_create()
 		.sock_path = lib->settings->get_str(
 			lib->settings, "%s.plugins.sa-notify.child_sa", NULL, lib->ns),
 	);
-
-
-	this->sock_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);;
-	if (this->sock_fd < 0) {
-		DBG0(DBG_DMN, "Failed to open unix socket: %s", strerror(errno));
-	}
-
-  struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(struct sockaddr_un));
-  addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, this->sock_path, sizeof(addr.sun_path) - 1);
-
-  int ret = connect(this->sock_fd, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un));
-  if (ret == -1) {
-		DBG0(DBG_DMN, "Failed to connect to unix socket %s: %s", this->sock_path, strerror(errno));
-  }
 
 	return &this->public;
 }
