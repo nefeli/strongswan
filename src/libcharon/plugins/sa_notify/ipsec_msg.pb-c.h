@@ -224,12 +224,17 @@ struct  _Nefeli__Pb__SA
    */
   protobuf_c_boolean has_iv;
   ProtobufCBinaryData iv;
+  /*
+   * True if ESPINUDP is used for NAT traversal
+   */
+  protobuf_c_boolean has_udp_encap;
+  protobuf_c_boolean udp_encap;
   size_t n_selectors;
   Nefeli__Pb__Selector **selectors;
 };
 #define NEFELI__PB__SA__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&nefeli__pb__sa__descriptor) \
-    , 0,0, 0,0, 0,0, 0,0, 0,0, 0,{0,NULL}, 0,{0,NULL}, 0,NULL }
+    , 0,0, 0,0, 0,0, 0,0, 0,0, 0,{0,NULL}, 0,{0,NULL}, 0,0, 0,NULL }
 
 
 struct  _Nefeli__Pb__Policy

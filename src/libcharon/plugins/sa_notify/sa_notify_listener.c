@@ -168,6 +168,11 @@ static void print_sa(uint32_t uid, host_t *local,
 				child_sa_t *child_sa, const char *ike_name, FILE *f)
 {
   Nefeli__Pb__SA sa_pb = NEFELI__PB__SA__INIT;
+  if (child_sa->has_encap(child_sa)) {
+    sa_pb.has_udp_encap = 1;
+    sa_pb.udp_encap = 1;
+  }
+
   sa_pb.has_local = 1;
   sa_pb.local = ntohl(((struct sockaddr_in*)local->get_sockaddr(local))->sin_addr.s_addr);
 
@@ -223,10 +228,13 @@ static void print_sa(uint32_t uid, host_t *local,
   local_selectors = child_sa->create_ts_enumerator(child_sa, TRUE);
   while(local_selectors->enumerate(local_selectors, &ts)) {
     Nefeli__Pb__Selector *sel_pb = sa_pb.selectors[i];
+    uint16_t start_port = ts->get_from_port(ts);
+    uint16_t end_port = ts->get_to_port(ts);
 
-    host_t *host = host_create_from_chunk(AF_INET, ts->get_from_address(ts), 0);
+
+    host_t *host = host_create_from_chunk(AF_INET, ts->get_from_address(ts), start_port);
     uint32_t start_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
-    host = host_create_from_chunk(AF_INET, ts->get_to_address(ts), 0);
+    host = host_create_from_chunk(AF_INET, ts->get_to_address(ts), end_port);
     uint32_t end_addr = ntohl(((struct sockaddr_in*)host->get_sockaddr(host))->sin_addr.s_addr);
 
     sel_pb->local_addrs = malloc(sizeof(Nefeli__Pb__Selector__Address));
@@ -254,9 +262,6 @@ static void print_sa(uint32_t uid, host_t *local,
     }
 
     if (proto == 0 || proto == IPPROTO_UDP || proto == IPPROTO_TCP) {
-      uint16_t start_port = ts->get_from_port(ts);
-      uint16_t end_port = ts->get_to_port(ts);
-
       sel_pb->local_ports = malloc(sizeof(Nefeli__Pb__Selector__Port));
       nefeli__pb__selector__port__init(sel_pb->local_ports);
       if (start_port == 0 && end_port == 0xffff) {

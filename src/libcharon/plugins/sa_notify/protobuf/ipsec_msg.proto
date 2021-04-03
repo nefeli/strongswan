@@ -103,6 +103,9 @@ message SA {
 
   reserved 13;  // uint64 lifetime = 13;
 
+  // True if ESPINUDP is used for NAT traversal
+  bool udp_encap = 15;
+
   repeated Selector selectors = 14;
 }
 

@@ -725,7 +725,7 @@ const ProtobufCMessageDescriptor nefeli__pb__selector__descriptor =
   (ProtobufCMessageInit) nefeli__pb__selector__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor nefeli__pb__sa__field_descriptors[8] =
+static const ProtobufCFieldDescriptor nefeli__pb__sa__field_descriptors[9] =
 {
   {
     "local",
@@ -823,6 +823,18 @@ static const ProtobufCFieldDescriptor nefeli__pb__sa__field_descriptors[8] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "udp_encap",
+    15,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_BOOL,
+    offsetof(Nefeli__Pb__SA, has_udp_encap),
+    offsetof(Nefeli__Pb__SA, udp_encap),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned nefeli__pb__sa__field_indices_by_name[] = {
   4,   /* field[4] = encr_alg */
@@ -833,12 +845,13 @@ static const unsigned nefeli__pb__sa__field_indices_by_name[] = {
   7,   /* field[7] = selectors */
   2,   /* field[2] = spi */
   3,   /* field[3] = tunnel */
+  8,   /* field[8] = udp_encap */
 };
 static const ProtobufCIntRange nefeli__pb__sa__number_ranges[2 + 1] =
 {
   { 4, 0 },
   { 14, 7 },
-  { 0, 8 }
+  { 0, 9 }
 };
 const ProtobufCMessageDescriptor nefeli__pb__sa__descriptor =
 {
@@ -848,7 +861,7 @@ const ProtobufCMessageDescriptor nefeli__pb__sa__descriptor =
   "Nefeli__Pb__SA",
   "nefeli.pb",
   sizeof(Nefeli__Pb__SA),
-  8,
+  9,
   nefeli__pb__sa__field_descriptors,
   nefeli__pb__sa__field_indices_by_name,
   2,  nefeli__pb__sa__number_ranges,
