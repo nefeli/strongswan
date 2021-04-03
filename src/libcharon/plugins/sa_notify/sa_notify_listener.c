@@ -21,9 +21,17 @@
  * THE SOFTWARE.
  */
 #define _GNU_SOURCE
+
+#include <errno.h>
 #include <inttypes.h>
-#include <stdio.h>
 #include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
 
 #include "sa_notify_listener.h"
 #include "ipsec_msg.pb-c.h"
@@ -44,14 +52,14 @@ struct private_sa_notify_listener_t {
 	sa_notify_listener_t public;
 
 	/**
-	 * File path to where SAs will be written
+	 * Path to unix socket where SAs will be written
 	 */
-	char *filepath;
+	char *sock_path;
 
 	/**
-	 * File
+	 * Socket handle
 	 */
-	FILE *f;
+	int sock_fd;
 };
 
 /**
@@ -165,7 +173,7 @@ static inline void esp_names(proposal_t *proposal, const char **enc,
 static void print_sa(uint32_t uid, host_t *local,
 				host_t *remote, protocol_id_t protocol, ipsec_mode_t mode,
 				uint32_t spi, proposal_t *proposal, const chunk_t *encr_key,
-				child_sa_t *child_sa, const char *ike_name, FILE *f)
+				child_sa_t *child_sa, const char *ike_name, int sock_fd)
 {
   Nefeli__Pb__SA sa_pb = NEFELI__PB__SA__INIT;
   if (child_sa->has_encap(child_sa)) {
@@ -348,7 +356,11 @@ static void print_sa(uint32_t uid, host_t *local,
   nefeli__pb__sa__pack(&sa_pb, buf.ptr);
   buf64 = chunk_to_base64(buf, NULL);
 
-	fprintf(f, "CREATE,%s,%s\n", ike_name, buf64.ptr);
+	int n = snprintf(lbuf, 1024, "CREATE,%s,%s\n", ike_name, buf64.ptr);
+  int ret = write(sock_fd, lbuf, n);
+  if (ret == -1) {
+		DBG0(DBG_DMN, "Failed to write SA notification: %s", strerror(errno));
+  }
 
   chunk_free(&buf);
   chunk_free(&buf64);
@@ -401,19 +413,12 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
   print_sa(
     uid, init, resp,
     protocol, mode, spi_r, proposal, &encr_i, child_sa,
-    ike_sa->get_name(ike_sa), this->f);
+    ike_sa->get_name(ike_sa), this->sock_fd);
 
   print_sa(
     uid, resp, init,
     protocol, mode, spi_i, proposal, &encr_r, child_sa,
-    ike_sa->get_name(ike_sa), this->f);
-  int res = fflush(this->f);
-  if (res != 0)
-  {
-    DBG0(DBG_CHD,
-      "Failed to flush child_derived_keys to file \"%s\" for \"%ld\"",
-      this->filepath, child_sa->get_unique_id(child_sa));
-  }
+    ike_sa->get_name(ike_sa), this->sock_fd);
 
 	return TRUE;
 }
@@ -424,22 +429,22 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
 METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 				ike_sa_t *ike_sa, child_sa_t *child_sa, bool up)
 {
-	/* Only care about deletion not creation here since `child_derived_keys`
-	 * handles creation */
-	if (up)
-	{
-		return TRUE;
-	}
-	int res = fprintf(this->f, "\"DELETE\",%u,\"%s\",\"%s\"\n",
-        child_sa->get_unique_id(child_sa),ike_sa->get_name(ike_sa),
-        child_sa->get_name(child_sa));
-	int resf = fflush(this->f);
-	if (res < 0 || resf != 0)
-	{
-		DBG0(DBG_CHD,
-			"Failed to write child_child_updown to file \"%s\" for \"%ld\"",
-			this->filepath, child_sa->get_unique_id(child_sa));
-	}
+	///* Only care about deletion not creation here since `child_derived_keys`
+	// * handles creation */
+	//if (up)
+	//{
+	//	return TRUE;
+	//}
+	//int res = fprintf(this->f, "\"DELETE\",%u,\"%s\",\"%s\"\n",
+  //      child_sa->get_unique_id(child_sa),ike_sa->get_name(ike_sa),
+  //      child_sa->get_name(child_sa));
+	//int resf = fflush(this->f);
+	//if (res < 0 || resf != 0)
+	//{
+	//	DBG0(DBG_CHD,
+	//		"Failed to write child_child_updown to file \"%s\" for \"%ld\"",
+	//		this->filepath, child_sa->get_unique_id(child_sa));
+	//}
 	return TRUE;
 }
 
@@ -449,24 +454,24 @@ METHOD(listener_t, child_updown, bool, private_sa_notify_listener_t *this,
 METHOD(listener_t, child_rekey, bool, private_sa_notify_listener_t *this,
 				ike_sa_t *ike_sa, child_sa_t *old, child_sa_t *new)
 {
-	int res = fprintf(this->f,
-        "\"REKEY\",\"%s\",\"%s\",\"%s\",%u,%ld,%u,%ld\n",
-        ike_sa->get_name(ike_sa), old->get_name(old), new->get_name(new),
-        old->get_unique_id(old), old->get_lifetime(old, TRUE),
-        new->get_unique_id(new), new->get_lifetime(new, TRUE));
-	int resf = fflush(this->f);
-	if (res < 0 || resf != 0)
-	{
-		DBG0(DBG_CHD,
-			"Failed to write child_rekey to file \"%s\" for old: \"%ld\" new: \"%ld\"",
-			this->filepath, old->get_unique_id(old), new->get_unique_id(new));
-	}
+	//int res = fprintf(this->f,
+  //      "\"REKEY\",\"%s\",\"%s\",\"%s\",%u,%ld,%u,%ld\n",
+  //      ike_sa->get_name(ike_sa), old->get_name(old), new->get_name(new),
+  //      old->get_unique_id(old), old->get_lifetime(old, TRUE),
+  //      new->get_unique_id(new), new->get_lifetime(new, TRUE));
+	//int resf = fflush(this->f);
+	//if (res < 0 || resf != 0)
+	//{
+	//	DBG0(DBG_CHD,
+	//		"Failed to write child_rekey to file \"%s\" for old: \"%ld\" new: \"%ld\"",
+	//		this->filepath, old->get_unique_id(old), new->get_unique_id(new));
+	//}
 	return TRUE;
 }
 
 METHOD(sa_notify_listener_t, destroy, void, private_sa_notify_listener_t *this)
 {
-	fclose(this->f);
+	close(this->sock_fd);
 	free(this);
 }
 
@@ -483,16 +488,25 @@ sa_notify_listener_t *sa_notify_listener_create()
 			},
 			.destroy = _destroy,
 		},
-		.filepath = lib->settings->get_str(
+		.sock_path = lib->settings->get_str(
 			lib->settings, "%s.plugins.sa-notify.child_sa", NULL, lib->ns),
 	);
 
 
-	this->f = fopen(this->filepath, "a");
-	if (!this->f)
-	{
-		DBG0(DBG_DMN, "Failed to open file: %s", this->filepath);
+	this->sock_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);;
+	if (this->sock_fd < 0) {
+		DBG0(DBG_DMN, "Failed to open unix socket: %s", strerror(errno));
 	}
+
+  struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(struct sockaddr_un));
+  addr.sun_family = AF_UNIX;
+  strncpy(addr.sun_path, this->sock_path, sizeof(addr.sun_path) - 1);
+
+  int ret = connect(this->sock_fd, (const struct sockaddr *) &addr, sizeof(struct sockaddr_un));
+  if (ret == -1) {
+		DBG0(DBG_DMN, "Failed to connect to unix socket %s: %s", this->sock_path, strerror(errno));
+  }
 
 	return &this->public;
 }
