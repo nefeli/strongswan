@@ -432,6 +432,10 @@ METHOD(listener_t, child_derived_keys, bool, private_sa_notify_listener_t *this,
     protocol, mode, spi_i, proposal, &encr_r, child_sa,
     ike_sa->get_name(ike_sa), sock_fd);
 
+  if (close(sock_fd) == -1) {
+		DBG0(DBG_DMN, "Failed to close socket: %s", strerror(errno));
+  }
+
 	return TRUE;
 }
 
